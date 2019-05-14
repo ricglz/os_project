@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import socket
 import sys
+import json
 
 clientsocket = None
 cont = True
@@ -25,31 +26,37 @@ def start_connection():
 
 
 def analyse_data(time, words):
-    if 'LRM' in words and 'MRM' in words:
-        clientsocket.send('Política LRM y MRM recibidas')
+    print(time)
+    print(words)
+    if 'LRM' in words and 'MRM' in words and 'PolíticaMemory' in words:
+        clientsocket.send('Política LRM y MRM recibidas'.encode('utf-8'))
     elif words[0] == 'RealMemory':
-        clientsocket.send('Liberando página de proceso {}'.format(words[1]))
+        clientsocket.send('Asignando {} KB de memoria real'.
+                          format(words[1]).encode('utf-8'))
     elif words[0] == 'SwapMemory':
-        clientsocket.send('Liberando página de proceso {}'.format(words[1]))
+        clientsocket.send('Asignando {} KB de swap memory'.
+                          format(words[1]).encode('utf-8'))
     elif words[0] == 'PageSize':
-        clientsocket.send('Liberando página de proceso {}'.format(words[1]))
+        clientsocket.send('Asignando tamaño de página de {} bytes'.
+                          format(words[1]).encode('utf-8'))
     elif words[0] == 'P':
         clientsocket.send('Cargando proceso {} con un tamaño de {} bytes'.
-                          format(words[2], words[1]))
+                          format(words[2], words[1]).encode('utf-8'))
     elif words[0] == 'A':
         clientsocket.send('''Accesando memoria {} de proceso {} y es
                               modificable {}'''.
-                          format(words[1], words[2], words[3]))
+                          format(words[1], words[2], words[3]).encode('utf-8'))
     elif words[0] == 'L':
-        clientsocket.send('Liberando página de proceso {}'.format(words[1]))
+        clientsocket.send('Liberando página de proceso {}'.
+                          format(words[1]).encode('utf-8'))
     elif words[0] == 'C':
-        clientsocket.send('Comentarios')
+        clientsocket.send('Comentarios'.encode('utf-8'))
     elif words[0] == 'F':
-        clientsocket.send('Acabar politica')
+        clientsocket.send('Acabar politica'.encode('utf-8'))
     elif words[0] == 'E':
-        clientsocket.send('Acabar programa')
+        clientsocket.send('Acabar programa'.encode('utf-8'))
     else:
-        clientsocket.send('Query no valido, intente otra vez')
+        clientsocket.send('Query no valido, intente otra vez'.encode('utf-8'))
 
 
 if __name__ == '__main__':
@@ -58,19 +65,18 @@ if __name__ == '__main__':
     # Print to stderr and sent to client
     msg = 'Se ha hecho la conexión'
     clientsocket.send(msg.encode('utf-8'))
-    print(msg)
+    print(msg, file=sys.stderr)
 
     try:
         while cont:
-            response = clientsocket.recv(1024).decode('utf-8')
+            response = json.loads(clientsocket.recv(1024))
             print(response, file=sys.stderr)
 
             if response:
-                analyse_data(response)
-            else:
-                print('Conexion terminada', file=sys.stderr)
-                clientsocket.close()
-                sys.exit()
-
+                analyse_data(response[0], response[1].split())
+    except json.decoder.JSONDecodeError:
+        print('Conexion terminada', file=sys.stderr)
     finally:
         print('Conexion terminada', file=sys.stderr)
+    clientsocket.close()
+    sys.exit()
