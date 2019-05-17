@@ -8,7 +8,7 @@ from math import ceil
 clientsocket = None
 cont = True
 params = {}
-swap = []
+swaps = []
 pages = []
 processes = []
 
@@ -50,7 +50,10 @@ def analyse_data(time, words):
         clientsocket.send('Asignando tamaño de página de {} bytes'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'P':
-        createProcess()
+        size = float(words[1])
+        pid = float(words[2])
+        createProcess(size, pid)
+
         clientsocket.send('Cargando proceso {} con un tamaño de {} bytes'.
                           format(words[2], words[1]).encode('utf-8'))
     elif words[0] == 'A':
@@ -58,7 +61,10 @@ def analyse_data(time, words):
                               modificable {}'''.
                           format(words[1], words[2], words[3]).encode('utf-8'))
     elif words[0] == 'L':
-        clientsocket.send('Liberando página de proceso {}'.
+        pid = float(words[1])
+        createProcess(pid)
+
+        clientsocket.send('Liberando información de proceso {}'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'C':
         clientsocket.send('Comentarios'.encode('utf-8'))
@@ -72,7 +78,7 @@ def analyse_data(time, words):
 
 def initSwap():
     for i in range(0, params['numSwapPages']):
-        swap.append({'pid': -1})
+        swaps.append({'pid': -1})
 
 
 def initPages():
@@ -85,6 +91,15 @@ def createProcess(size, pid):
     processes.append({
         'pid': pid, 'size': size, 'psize': ceil(psize), 'pageFault': False
     })
+
+
+def killProcess(pid):
+    for page in pages:
+        if page['pid'] == pid:
+            page['pid'] = -1
+    for swap in swaps:
+        if swap['pid'] == pid:
+            page['pid'] = -1
 
 
 if __name__ == '__main__':
