@@ -10,7 +10,7 @@ cont = True
 params = {}
 swaps = []
 pages = []
-processes = []
+processes = {}
 
 
 def start_connection():
@@ -42,7 +42,7 @@ def analyse_data(time, words):
         clientsocket.send('Asignando {} KB de swap memory'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'PageSize':
-        params['PageSize'] = float(words[1])
+        params['PageSize'] = float(words[1]) / 1024
         params['numPages'] = int(params['RealMemory'] / params['PageSize'])
         params['numSwapPages'] = int(params['SwapMemory'] / params['PageSize'])
         initSwap()
@@ -51,17 +51,21 @@ def analyse_data(time, words):
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'P':
         size = float(words[1])
-        pid = float(words[2])
+        pid = int(words[2])
         createProcess(size, pid)
 
         clientsocket.send('Cargando proceso {} con un tamaño de {} bytes'.
                           format(words[2], words[1]).encode('utf-8'))
     elif words[0] == 'A':
-        clientsocket.send('''Accesando memoria {} de proceso {} y es
+        v_memory = int(words[1])
+        pid = int(words[2])
+        modified = bool(int(words[3]))
+        accessMemory(v_memory, pid, modified)
+        clientsocket.send('''Accesando memoria virtual {} de proceso {} y es
                               modificable {}'''.
                           format(words[1], words[2], words[3]).encode('utf-8'))
     elif words[0] == 'L':
-        pid = float(words[1])
+        pid = int(words[1])
         createProcess(pid)
 
         clientsocket.send('Liberando información de proceso {}'.
@@ -87,10 +91,53 @@ def initPages():
 
 
 def createProcess(size, pid):
-    psize = size / (params['PageSize'] * 1024)
-    processes.append({
+    psize = size / params['PageSize'] * 1024
+    processes[pid] = {
         'pid': pid, 'size': size, 'psize': ceil(psize), 'pageFault': False
-    })
+    }
+
+
+def accessMemory(v, pid, modified):
+    res = -1
+    bytePageSize = params['PageSize'] * 1024
+    p = int(v / bytePageSize)
+    d = v % bytePageSize
+    pageFrame = searchPage(pid, p, True)
+
+    if v > processes[pid]['size']:
+        clientsocket.sendall('Direccion {} fuera de proceso. Se ignora'.
+                             format(str(v)).encode('utf-8'))
+
+    if pageFrame != -1:
+        res = int(pageFrame * bytePageSize + d)
+        clientsocket.sendall('Dirección física de {}: {}'.
+                             format(str(v), str(res)).encode('utf-8'))
+    else:
+        if searchPage(pid, p, False) != -1:
+            removeFromSwap()
+
+        clientsocket.sendall('Page fault'.encode('utf-8'))
+
+    return res
+
+
+def searchPage(pid, page, memoryReal=False):
+    array = pages if memoryReal else swaps
+
+    index = 0
+    for elem in array:
+        if elem['pid'] == pid and elem['page'] == page:
+            return index
+        index = index + 1
+    return -1
+
+
+def removeFromSwap(pid, page):
+    index = 0
+    while swaps[index]['pid'] != pid or swaps[index]['page'] != page:
+        index = index + 1
+
+    swaps[index]['pid'] = -1
 
 
 def killProcess(pid):
