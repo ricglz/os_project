@@ -3,12 +3,14 @@
 import socket
 import sys
 import json
+from math import ceil
 
 clientsocket = None
 cont = True
 params = {}
 swap = []
 pages = []
+processes = []
 
 
 def start_connection():
@@ -48,6 +50,7 @@ def analyse_data(time, words):
         clientsocket.send('Asignando tamaño de página de {} bytes'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'P':
+        createProcess()
         clientsocket.send('Cargando proceso {} con un tamaño de {} bytes'.
                           format(words[2], words[1]).encode('utf-8'))
     elif words[0] == 'A':
@@ -75,6 +78,13 @@ def initSwap():
 def initPages():
     for i in range(0, params['numPages']):
         pages.append({'pid': -1})
+
+
+def createProcess(size, pid):
+    psize = size / (params['PageSize'] * 1024)
+    processes.append({
+        'pid': pid, 'size': size, 'psize': ceil(psize), 'pageFault': False
+    })
 
 
 if __name__ == '__main__':
