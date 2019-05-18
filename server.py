@@ -11,40 +11,39 @@ params = {}
 swaps = []
 pages = []
 processes = {}
+freePages = 0
 
 
 def start_connection():
-    # create a socket object
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    # get local machine name
-    host = socket.gethostname()
-    port = 9999
+    server_address = (socket.gethostname(), 3000)
+    print(f'Conectando en la dirección {server_address}', file=sys.stderr)
 
-    # bind to the port
-    sock.bind((host, port))
+    sock.bind(server_address)
 
-    # Listen to the client
     sock.listen(1)
+    print('Esperando a que el cliente se conecte', file=sys.stderr)
 
     return sock.accept()
 
 
 def analyse_data(time, words):
-    global flag
+    global flag, freePages
 
     if 'LRM' in words and 'MRM' in words and 'PolíticaMemory' in words:
         clientsocket.send('Política LRM y MRM recibidas'.encode('utf-8'))
     elif words[0] == 'RealMemory':
-        params['RealMemory'] = float(words[1])
+        params['RealMemory'] = float(words[1]) * 1024
+        freePages = params['RealMemory']
         clientsocket.send('Asignando {} KB de memoria real'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'SwapMemory':
-        params['SwapMemory'] = float(words[1])
+        params['SwapMemory'] = float(words[1]) * 1024
         clientsocket.send('Asignando {} KB de swap memory'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'PageSize':
-        params['PageSize'] = float(words[1]) / 1024
+        params['PageSize'] = float(words[1])
         params['numPages'] = int(params['RealMemory'] / params['PageSize'])
         params['numSwapPages'] = int(params['SwapMemory'] / params['PageSize'])
         initSwap()
@@ -75,6 +74,7 @@ def analyse_data(time, words):
     elif words[0] == 'C':
         clientsocket.send('Haciendo comentarios'.encode('utf-8'))
     elif words[0] == 'F':
+        killAllProcesses()
         clientsocket.send('Acabando secuencia de datos'.encode('utf-8'))
     elif words[0] == 'E':
         clientsocket.send('Acabando programa'.encode('utf-8'))
@@ -94,10 +94,32 @@ def initPages():
 
 
 def createProcess(size, pid):
-    psize = size / params['PageSize'] * 1024
+    if size > params['RealMemory']:
+        print('El proceso es más grande que la memoria real se ignora',
+              file=sys.stderr)
+    pagesCount = size / params['PageSize']
     processes[pid] = {
-        'pid': pid, 'size': size, 'psize': ceil(psize), 'pageFault': False
+        'pid': pid, 'size': size, 'pagesCount': ceil(pagesCount),
+        'pageFault': False
     }
+    if freePages >= pagesCount:
+        fill_pages(0, pid, pagesCount)
+    else:
+        swap_with_other_process()
+
+
+def fill_pages(pageNumber, pid, pagesCount):
+    index = 0
+    while index < params['numPages'] and pageNumber < pagesCount:
+        if pages[index]['pid'] == -1:
+            pages[index]['pid'] = pid
+            pages[index]['pageNumber'] = pageNumber
+            pageNumber = pageNumber + 1
+        index = index + 1
+
+
+def swap_with_other_process():
+    return
 
 
 def accessMemory(v, pid, modified):
@@ -107,32 +129,30 @@ def accessMemory(v, pid, modified):
               file=sys.stderr)
         return
 
-    bytePageSize = params['PageSize'] * 1024
-    p = int(v / bytePageSize)
-    d = v % bytePageSize
+    p = int(v / params['PageSize'])
+    d = v % params['PageSize']
     pageFrame = searchPage(pid, p, True)
 
     if pageFrame != -1:
-        res = int(pageFrame * bytePageSize + d)
+        res = int(pageFrame * params['PageSize'] + d)
         print(f'''Dirección física de {str(v)}: {str(res)}''',
               file=sys.stderr)
     else:
-        if searchPage(pid, p, False) != -1:
-            removeFromSwap()
+        if searchPage(pid, p) != -1:
+            removeFromSwap(pid, p)
 
         print('Ocurrió un fallo de pagina', file=sys.stderr)
 
-    return res
 
-
-def searchPage(pid, page, memoryReal=False):
-    array = pages if memoryReal else swaps
+def searchPage(pid, page, realMemory=False):
+    array = pages if realMemory else swaps
 
     index = 0
     for elem in array:
-        if elem['pid'] == pid and elem['page'] == page:
+        if elem['pid'] == pid and elem['pageNumber'] == page:
             return index
         index = index + 1
+
     return -1
 
 
@@ -150,20 +170,32 @@ def killProcess(pid):
             page['pid'] = -1
     for swap in swaps:
         if swap['pid'] == pid:
-            page['pid'] = -1
+            swap['pid'] = -1
+
+
+def receive_message():
+    response = json.loads(clientsocket.recv(1024).decode('utf-8'))
+    print(f'El servidor recibe {response}:', file=sys.stderr)
+    return response
+
+
+def killAllProcesses():
+    for page in pages:
+        page['pid'] = -1
+    for swap in swaps:
+        swap['pid'] = -1
 
 
 if __name__ == '__main__':
     clientsocket, addr = start_connection()
 
-    # Print to stderr and sent to client
     msg = 'Se ha hecho la conexión'
     clientsocket.send(msg.encode('utf-8'))
     print(msg, file=sys.stderr)
 
     try:
         while flag:
-            response = json.loads(clientsocket.recv(1024).decode('utf-8'))
+            response = receive_message()
             words = response[1].split()
             analyse_data(response[0], words)
     finally:
