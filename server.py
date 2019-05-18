@@ -6,7 +6,7 @@ import json
 from math import ceil
 
 clientsocket = None
-cont = True
+flag = True
 params = {}
 swaps = []
 pages = []
@@ -31,6 +31,8 @@ def start_connection():
 
 
 def analyse_data(time, words):
+    global flag
+
     if 'LRM' in words and 'MRM' in words and 'PolíticaMemory' in words:
         clientsocket.send('Política LRM y MRM recibidas'.encode('utf-8'))
     elif words[0] == 'RealMemory':
@@ -66,16 +68,17 @@ def analyse_data(time, words):
                           format(words[1], words[2], words[3]).encode('utf-8'))
     elif words[0] == 'L':
         pid = int(words[1])
-        createProcess(pid)
+        killProcess(pid)
 
         clientsocket.send('Liberando información de proceso {}'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'C':
-        clientsocket.send('Comentarios'.encode('utf-8'))
+        clientsocket.send('Haciendo comentarios'.encode('utf-8'))
     elif words[0] == 'F':
-        clientsocket.send('Acabar politica'.encode('utf-8'))
+        clientsocket.send('Acabando secuencia de datos'.encode('utf-8'))
     elif words[0] == 'E':
-        clientsocket.send('Acabar programa'.encode('utf-8'))
+        clientsocket.send('Acabando programa'.encode('utf-8'))
+        flag = False
     else:
         clientsocket.send('Query no valido, intente otra vez'.encode('utf-8'))
 
@@ -99,24 +102,25 @@ def createProcess(size, pid):
 
 def accessMemory(v, pid, modified):
     res = -1
+    if v > processes[pid]['size']:
+        print(f'''Direccion virtual {str(v)} fuera de proceso, se ignorara''',
+              file=sys.stderr)
+        return
+
     bytePageSize = params['PageSize'] * 1024
     p = int(v / bytePageSize)
     d = v % bytePageSize
     pageFrame = searchPage(pid, p, True)
 
-    if v > processes[pid]['size']:
-        clientsocket.sendall('Direccion {} fuera de proceso. Se ignora'.
-                             format(str(v)).encode('utf-8'))
-
     if pageFrame != -1:
         res = int(pageFrame * bytePageSize + d)
-        clientsocket.sendall('Dirección física de {}: {}'.
-                             format(str(v), str(res)).encode('utf-8'))
+        print(f'''Dirección física de {str(v)}: {str(res)}''',
+              file=sys.stderr)
     else:
         if searchPage(pid, p, False) != -1:
             removeFromSwap()
 
-        clientsocket.sendall('Page fault'.encode('utf-8'))
+        print('Ocurrió un fallo de pagina', file=sys.stderr)
 
     return res
 
@@ -158,15 +162,11 @@ if __name__ == '__main__':
     print(msg, file=sys.stderr)
 
     try:
-        while cont:
-            response = json.loads(clientsocket.recv(1024))
-            print(response, file=sys.stderr)
-
-            if response:
-                analyse_data(response[0], response[1].split())
-    except json.decoder.JSONDecodeError:
-        print('Conexion terminada', file=sys.stderr)
+        while flag:
+            response = json.loads(clientsocket.recv(1024).decode('utf-8'))
+            words = response[1].split()
+            analyse_data(response[0], words)
     finally:
-        print('Conexion terminada', file=sys.stderr)
-    clientsocket.close()
-    sys.exit()
+        print('Servidor cerrando sesión', file=sys.stderr)
+        clientsocket.close()
+        sys.exit()

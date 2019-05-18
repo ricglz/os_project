@@ -1,7 +1,9 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 import socket
+from sys import stderr
 from json import dumps
+from time import sleep
 
 # create a socket object
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,9 +21,20 @@ messages = [(0.0, 'RealMemory 2'), (0.1, 'SwapMemory 4'), (0.2, 'PageSize 16'),
 
 # Wait for message to be received from the server
 response = s.recv(1024).decode('utf-8')
-print(response)
+print(response, file=stderr)
 
-for msg in messages:
-    s.send(dumps([msg[0], msg[1]]).encode('utf-8'))
+try:
+    for msg in messages:
+        print(f'Cliente manda: {msg}', file=stderr)
 
-    print(s.recv(1024).decode('utf-8'))
+        s.send(dumps([msg[0], msg[1]]).encode('utf-8'))
+
+        print(f'Cliente recibe: {s.recv(1024).decode("utf-8")}',
+              file=stderr)
+
+        sleep(0.01)
+finally:
+    print('Cliente cerrando sesion', file=stderr)
+
+if __name__ == '__main__':
+    exit(0)
