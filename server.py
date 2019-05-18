@@ -31,8 +31,16 @@ def start_connection():
 def analyse_data(time, words):
     global flag, freePages
 
-    if 'LRM' in words and 'MRM' in words and 'PolíticaMemory' in words:
-        clientsocket.send('Política LRM y MRM recibidas'.encode('utf-8'))
+    if 'PolíticaMemory' in words:
+        if words[1] == 'LRM':
+            params['LRM'] = True
+            clientsocket.send('Política LRM recibida'.encode('utf-8'))
+        elif 'MRM':
+            params['LRM'] = False
+            clientsocket.send('Politica MRM recibida'.encode('utf-8'))
+        else:
+            clientsocket.send('Query invalido, intentelo otra vez'.
+                              encode('utf-8'))
     elif words[0] == 'RealMemory':
         params['RealMemory'] = float(words[1]) * 1024
         freePages = params['RealMemory']
@@ -75,6 +83,7 @@ def analyse_data(time, words):
         clientsocket.send('Haciendo comentarios'.encode('utf-8'))
     elif words[0] == 'F':
         killAllProcesses()
+        showTable()
         clientsocket.send('Acabando secuencia de datos'.encode('utf-8'))
     elif words[0] == 'E':
         clientsocket.send('Acabando programa'.encode('utf-8'))
@@ -184,6 +193,10 @@ def killAllProcesses():
         page['pid'] = -1
     for swap in swaps:
         swap['pid'] = -1
+
+
+def showTable():
+    return
 
 
 if __name__ == '__main__':
