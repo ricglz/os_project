@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import socket
 import sys
-import json
 from math import ceil
 
 clientsocket = None
@@ -17,7 +16,7 @@ freePages = 0
 def start_connection():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    server_address = (socket.gethostname(), 3000)
+    server_address = ('localhost', 10000)
     print(f'Conectando en la dirección {server_address}', file=sys.stderr)
 
     sock.bind(server_address)
@@ -28,10 +27,10 @@ def start_connection():
     return sock.accept()
 
 
-def analyse_data(time, words):
+def analyse_data(words):
     global flag, freePages
 
-    if 'PolíticaMemory' in words:
+    if words[0] == 'PoliticaMemory':
         if words[1] == 'LRM':
             params['LRM'] = True
             clientsocket.send('Política LRM recibida'.encode('utf-8'))
@@ -182,12 +181,6 @@ def killProcess(pid):
             swap['pid'] = -1
 
 
-def receive_message():
-    response = json.loads(clientsocket.recv(1024).decode('utf-8'))
-    print(f'El servidor recibe {response}:', file=sys.stderr)
-    return response
-
-
 def killAllProcesses():
     for page in pages:
         page['pid'] = -1
@@ -199,18 +192,21 @@ def showTable():
     return
 
 
+def receive_message():
+    response = clientsocket.recv(1024).decode('utf-8')
+    print(f'El servidor recibe {response}:', file=sys.stderr)
+    return response
+
+
 if __name__ == '__main__':
     clientsocket, addr = start_connection()
 
-    msg = 'Se ha hecho la conexión'
-    clientsocket.send(msg.encode('utf-8'))
-    print(msg, file=sys.stderr)
+    print('Se ha hecho la conexión', file=sys.stderr)
 
     try:
         while flag:
-            response = receive_message()
-            words = response[1].split()
-            analyse_data(response[0], words)
+            words = receive_message().split()
+            analyse_data(words)
     finally:
         print('Servidor cerrando sesión', file=sys.stderr)
         clientsocket.close()
