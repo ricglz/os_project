@@ -76,7 +76,6 @@ def analyse_data(words):
                               encode('utf-8'))
     elif words[0] == 'RealMemory':
         params['RealMemory'] = float(words[1]) * 1024
-        freePages = params['RealMemory']
         clientsocket.send('Asignando {} KB de memoria real'.
                           format(words[1]).encode('utf-8'))
     elif words[0] == 'SwapMemory':
@@ -86,6 +85,7 @@ def analyse_data(words):
     elif words[0] == 'PageSize':
         params['PageSize'] = float(words[1])
         params['numPages'] = int(params['RealMemory'] / params['PageSize'])
+        freePages = params['numPages']
         params['numSwapPages'] = int(params['SwapMemory'] / params['PageSize'])
         initSwap()
         initPages()
@@ -116,9 +116,10 @@ def analyse_data(words):
         clientsocket.send('Haciendo comentarios'.encode('utf-8'))
     elif words[0] == 'F':
         killAllProcesses()
-        showTable()
+        showTableF()
         clientsocket.send('Acabando secuencia de datos'.encode('utf-8'))
     elif words[0] == 'E':
+        showTableE()
         clientsocket.send('Acabando programa'.encode('utf-8'))
         flag = False
     else:
@@ -169,25 +170,29 @@ def fill_pages(pid, pagesCount, timestamp):
 def swap_with_other_process(pid, pagesCount, timestamp):
     pageNumber = 0
     while pageNumber < pagesCount:
-        best_option = 0
-        best_timestamp = pages[0]['lastModified']
-        index = 1
-        while index < params['numPages']:
-            if pages[index]['pid'] == -1:
-                if (params['LRM'] and
-                   pages[index]['lastModified'] < best_timestamp):
-                    best_option = index
-                    best_timestamp = pages[index]['lastModified']
-                elif (not params['LRM'] and
-                      pages[index]['lastModified'] > best_timestamp):
-                    best_option = index
-                    best_timestamp = pages[index]['lastModified']
-            index = index + 1
+        best_option = get_replacement()
         change_with_swap(pages[best_option])
         pages[best_option]['pid'] = pid
         pages[best_option]['pageNumber'] = pageNumber
         pages[best_option]['lastModified'] = timestamp
         pageNumber = pageNumber + 1
+
+
+def get_replacement():
+    best_option = 0
+    best_timestamp = pages[0]['lastModified']
+    index = 1
+    while index < params['numPages']:
+        if (params['LRM'] and
+           pages[index]['lastModified'] < best_timestamp):
+            best_option = index
+            best_timestamp = pages[index]['lastModified']
+        elif (not params['LRM'] and
+              pages[index]['lastModified'] > best_timestamp):
+            best_option = index
+            best_timestamp = pages[index]['lastModified']
+        index = index + 1
+    return best_option
 
 
 def change_with_swap(page):
@@ -241,19 +246,23 @@ def removeFromSwap(pid, page):
 
 
 def killProcess(pid):
+    global freePages
     for page in pages:
         if page['pid'] == pid:
             page['pid'] = -1
+            freePages = freePages + 1
     for swap in swaps:
         if swap['pid'] == pid:
             swap['pid'] = -1
 
 
 def killAllProcesses():
+    global freePages
     for page in pages:
         page['pid'] = -1
     for swap in swaps:
         swap['pid'] = -1
+    freePages = params['numPages']
 
 
 """ EJEMPLO DE COMO IMPRIMIR EN TABLAS Python 3
@@ -292,9 +301,9 @@ def showTableF(data, cols, wide):
 # Esta funcion despliega metricas para cada proceso creado
 # (Turnaround=T.salida-T.llegada, #page faults, #swap-ins, #swap-outs, Rendimiento=1-#fallas/#comandos A y TOTALES, rendAvg= 1-(totPageF/totA))
 def showTableE():
-    turnaround =
-    rend =
-    turnaroundAvg =
+    #  turnaround =
+    #  rend =
+    #  turnaroundAvg =
 
     n, r = divmod(len(data), cols)
     pat = '{{:{}}}'.format(wide)
