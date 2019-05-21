@@ -12,40 +12,13 @@ swaps = []
 pages = []
 processes = {}
 freePages = 0
-
-
-class Fifo:
-    def __init__(self):
-        self.first = None
-        self.last = None
-
-    def append(self, data):
-        node = [data, None]  # [payload, 'pointer'] "pair"
-        if self.first is None:
-            self.first = node
-        else:
-            self.last[1] = node
-        self.last = node
-
-    def pop(self):
-        if self.first is None:
-            raise IndexError
-        node = self.first
-        self.first = node[1]
-        return node[0]
-
-
-""" HOW TO USE CLASS FIFO
-if _ _name_ _=='_ _main_ _':  # Run a test/example when run as a script:
-    a = Fifo(  )
-    a.append(10)
-    a.append(20)
-    print a.pop( )
-    a.append(5)
-    print a.pop( )
-    print a.pop ()
-"""
-
+arrivTime = 0
+words=[]
+res = 0
+done = 0
+timestamp = 0
+pageF = 0
+p = 0
 
 def start_connection():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,8 +35,9 @@ def start_connection():
 
 
 def analyse_data(words):
-    global flag, freePages
+    global flag, freePages, arrivTime
 
+    arrivTime=time()
     if words[0] == 'PoliticaMemory':
         if words[1] == 'LRM':
             params['LRM'] = True
@@ -127,18 +101,21 @@ def analyse_data(words):
 
 
 def initSwap():
+    global timestamp
     timestamp = time()
     for i in range(0, params['numSwapPages']):
         swaps.append({'pid': -1, 'lastModified': timestamp})
 
 
 def initPages():
+    global timestamp
     timestamp = time()
     for i in range(0, params['numPages']):
         pages.append({'pid': -1, 'lastModified': timestamp})
 
 
 def createProcess(size, pid):
+    global timestamp, pageF, p
     if size > params['RealMemory']:
         print('El proceso es más grande que la memoria real se ignora',
               file=sys.stderr)
@@ -147,12 +124,14 @@ def createProcess(size, pid):
         'pid': pid, 'size': size, 'pagesCount': ceil(pagesCount),
         'pageFault': False
     }
+    p = p + 1
     timestamp = time()
     if freePages >= pagesCount:
         fill_pages(pid, pagesCount, timestamp)
 
     else:
         swap_with_other_process(pid, pagesCount, timestamp)
+        pageF = pageF + 1
 
 
 def fill_pages(pid, pagesCount, timestamp):
@@ -204,6 +183,7 @@ def change_with_swap(page):
 
 
 def accessMemory(v, pid, modified):
+    global res
     res = -1
     if v > processes[pid]['size']:
         print(f'''Direccion virtual {str(v)} fuera de proceso, se ignorara''',
@@ -249,7 +229,7 @@ def replaceWithNewPid(pid, page, frame):
 
 
 def killProcess(pid):
-    global freePages
+    global freePagesm, done
     for page in pages:
         if page['pid'] == pid:
             page['pid'] = -1
@@ -257,6 +237,7 @@ def killProcess(pid):
     for swap in swaps:
         if swap['pid'] == pid:
             swap['pid'] = -1
+    done=done+1
 
 
 def killAllProcesses():
@@ -266,21 +247,6 @@ def killAllProcesses():
     for swap in swaps:
         swap['pid'] = -1
     freePages = params['numPages']
-
-
-""" EJEMPLO DE COMO IMPRIMIR EN TABLAS Python 3
-    def print_table(data, cols, wide):
-    '''Prints formatted data on columns of given width.'''
-    n, r = divmod(len(data), cols)
-    pat = '{{:{}}}'.format(wide)
-    line = '\n'.join(pat * cols for _ in range(n))
-    last_line = pat * r
-    print(line.format(*data))
-    print(last_line.format(*data[n*cols:]))
-
-    data = [str(i) for i in range(27)]
-    print_table(data, 6, 12)
-"""
 
 
 # Funcion que imprime tabla que recibe de parametro: data, numero y anchura de
@@ -295,32 +261,31 @@ def showTableF(data, cols, wide):
           "Terminados")
     print(line.format(*data))
     print(last_line.format(*data[n*cols:]))
-    data = [str(i) for i in range(27)]
+    #data = [str(i) for i in range(27)]
+    data = [arrivTime, words, res, '-', '-', done]
     print_table(data, 6, 12)
-
     return
 
 
 # Esta funcion despliega metricas para cada proceso creado
 # (Turnaround=T.salida-T.llegada, #page faults, #swap-ins, #swap-outs, Rendimiento=1-#fallas/#comandos A y TOTALES, rendAvg= 1-(totPageF/totA))
 def showTableE():
-    #  turnaround =
-    #  rend =
-    #  turnaroundAvg =
+    turnaround = timestamp-arrivTime
+    #rend =
 
     n, r = divmod(len(data), cols)
     pat = '{{:{}}}'.format(wide)
     line = '\n'.join(pat * cols for _ in range(n))
     last_line = pat * r
     print("Proceso", "Turnaround", "# Page faults", "# Swap-ins",
-          "# Swap-outs", "Rendimiento", file=sys.stderr)
+          "# Swap-outs", "Rendimiento")
     print(line.format(*data), file=sys.stderr)
     print(last_line.format(*data[n*cols:]), file=sys.stderr)
-    data = [str(i) for i in range(27)]
+    #data = [str(i) for i in range(27)]
+    data = [p, turnaround, pageF, '-', '-', '-']
+    p = p+1
     print_table(data, 6, 12)
-    print("TOTAL", turnaroundAvg, totPageF, totSwapI, totSwapO, rendAvg,
           file=sys.stderr)
-
     return
 
 
