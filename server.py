@@ -220,7 +220,10 @@ def accessMemory(v, pid, modified):
               file=sys.stderr)
     else:
         if searchPage(pid, p) != -1:
-            removeFromSwap(pid, p)
+            replacementFrame = get_replacement()
+            replaceWithNewPid(pid, p, replacementFrame)
+            pages[replacementFrame]['pid'] = pid
+            pages[replacementFrame]['pageNumber'] = pageFrame
 
         print('Ocurrió un fallo de pagina', file=sys.stderr)
 
@@ -237,12 +240,12 @@ def searchPage(pid, page, realMemory=False):
     return -1
 
 
-def removeFromSwap(pid, page):
+def replaceWithNewPid(pid, page, frame):
     index = 0
     while swaps[index]['pid'] != pid or swaps[index]['page'] != page:
         index = index + 1
 
-    swaps[index]['pid'] = -1
+    swaps[index]['pid'] = pages[frame]['pid']
 
 
 def killProcess(pid):
