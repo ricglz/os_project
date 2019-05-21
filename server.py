@@ -183,10 +183,19 @@ def swap_with_other_process(pid, pagesCount, timestamp):
                     best_option = index
                     best_timestamp = pages[index]['lastModified']
             index = index + 1
-        pageNumber = pageNumber + 1
+        change_with_swap(pages[best_option])
         pages[best_option]['pid'] = pid
         pages[best_option]['pageNumber'] = pageNumber
         pages[best_option]['lastModified'] = timestamp
+        pageNumber = pageNumber + 1
+
+
+def change_with_swap(page):
+    index = 0
+    while index < params['numSwapPages']:
+        if swaps[index]['pid'] == -1:
+            swaps[index] = page
+            return
 
 
 def accessMemory(v, pid, modified):
